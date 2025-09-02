@@ -6,29 +6,54 @@ using System.Windows.Forms;
 
 namespace GraphDrawingApp
 {
-    /// <summary>
-    /// Головна форма для відображення графіка функції.
-    /// </summary>
     public class GraphForm : Form
     {
         private readonly FunctionCalculator calculator;
         private GraphPainter painter;
         private PointF[] graphPoints;
 
+        private TextBox inputBox;
+        private Button calculateButton;
+        private Label resultLabel;
+
         public GraphForm()
         {
             Text = "Побудова графіка функції";
             Size = new Size(800, 600);
-            DoubleBuffered = true; // Запобігає мерехтінню
+            DoubleBuffered = true;
 
-            // Ініціалізація об’єктів
+            // Калькулятор і графік
             calculator = new FunctionCalculator(2.3, 8.3, 0.6);
             graphPoints = calculator.GetPoints();
             painter = new GraphPainter(ClientSize.Width, ClientSize.Height, graphPoints);
 
-            // Підписка на події
+            // Елементи управління
+            inputBox = new TextBox { Location = new Point(10, 10), Width = 100 };
+            calculateButton = new Button { Text = "Обчислити", Location = new Point(120, 8) };
+            resultLabel = new Label { Text = "Результат: ", Location = new Point(220, 12), AutoSize = true };
+
+            calculateButton.Click += OnCalculateClick;
+
+            Controls.Add(inputBox);
+            Controls.Add(calculateButton);
+            Controls.Add(resultLabel);
+
             Paint += OnPaint;
             Resize += OnResize;
+        }
+
+        private void OnCalculateClick(object sender, EventArgs e)
+        {
+            if (double.TryParse(inputBox.Text, out double inputValue))
+            {
+                double result = calculator.CalculateY(inputValue);
+                resultLabel.Text = $"Результат: y = {result:F4}";
+            }
+            else
+            {
+                MessageBox.Show("Будь ласка, введіть число.", "Помилка вводу",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void OnPaint(object sender, PaintEventArgs e)
@@ -39,7 +64,7 @@ namespace GraphDrawingApp
         private void OnResize(object sender, EventArgs e)
         {
             painter.UpdateSize(ClientSize.Width, ClientSize.Height);
-            Invalidate(); // Викликає перемальовування
+            Invalidate();
         }
 
         [STAThread]
@@ -51,9 +76,6 @@ namespace GraphDrawingApp
         }
     }
 
-    /// <summary>
-    /// Клас для розрахунку значень функції y = (x+2)^2 / sqrt(x^2+1).
-    /// </summary>
     public class FunctionCalculator
     {
         private readonly double startX;
@@ -68,16 +90,13 @@ namespace GraphDrawingApp
         }
 
         /// <summary>
-        /// Обчислює значення функції в точці x.
+        /// Обчислює значення функції y = (x+2)^2 / sqrt(x^2+1).
         /// </summary>
-        private double CalculateY(double x)
+        public double CalculateY(double inputValue)
         {
-            return (x + 2) * (x + 2) / Math.Sqrt(x * x + 1);
+            return Math.Pow(inputValue + 2, 2) / Math.Sqrt(Math.Pow(inputValue, 2) + 1);
         }
 
-        /// <summary>
-        /// Генерує набір точок для побудови графіка.
-        /// </summary>
         public PointF[] GetPoints()
         {
             var points = new List<PointF>();
@@ -89,9 +108,6 @@ namespace GraphDrawingApp
         }
     }
 
-    /// <summary>
-    /// Клас для малювання графіка на формі.
-    /// </summary>
     public class GraphPainter
     {
         private int width;
@@ -105,39 +121,29 @@ namespace GraphDrawingApp
         {
             UpdateSize(width, height);
 
-            // Визначення діапазонів для масштабування
             minX = points.Min(p => p.X);
             maxX = points.Max(p => p.X);
             minY = points.Min(p => p.Y);
             maxY = points.Max(p => p.Y);
         }
 
-        /// <summary>
-        /// Оновлює розміри області малювання.
-        /// </summary>
         public void UpdateSize(int newWidth, int newHeight)
         {
             width = newWidth;
             height = newHeight;
         }
 
-        /// <summary>
-        /// Малює графік у межах форми з осями та підписами.
-        /// </summary>
         public void DrawGraph(Graphics graphics, PointF[] points)
         {
             graphics.Clear(Color.White);
 
-            // Трансформація точок під масштаб форми
             var transformedPoints = points.Select(p => new PointF(
                 (p.X - minX) * width / (maxX - minX),
                 height - (p.Y - minY) * height / (maxY - minY)
             )).ToArray();
 
-            // Малюємо координатні осі завжди у центрі
             DrawAxes(graphics);
 
-            // Малюємо графік
             using (var graphPen = new Pen(Color.Blue, 2))
             {
                 if (transformedPoints.Length > 1)
@@ -146,7 +152,6 @@ namespace GraphDrawingApp
                 }
             }
 
-            // Підпис формули знизу
             string functionText = "y = (x+2)^2 / sqrt(x^2+1),  2.3 ≤ x ≤ 8.3,  Δx = 0.6";
             var font = new Font("Arial", 12, FontStyle.Italic);
             var textSize = graphics.MeasureString(functionText, font);
@@ -154,9 +159,6 @@ namespace GraphDrawingApp
                 (width - textSize.Width) / 2, height - textSize.Height - 5);
         }
 
-        /// <summary>
-        /// Малює осі X та Y завжди через центр вікна з поділками.
-        /// </summary>
         private void DrawAxes(Graphics graphics)
         {
             using (var axisPen = new Pen(Color.Black, 1))
@@ -165,26 +167,17 @@ namespace GraphDrawingApp
                 float xCenter = width / 2f;
                 float yCenter = height / 2f;
 
-                // Вісь X
                 graphics.DrawLine(axisPen, 0, yCenter, width, yCenter);
-
-                // Вісь Y
                 graphics.DrawLine(axisPen, xCenter, 0, xCenter, height);
 
-                // Поділки по X
                 for (int i = 0; i <= width; i += 50)
                 {
                     graphics.DrawLine(axisPen, i, yCenter - 3, i, yCenter + 3);
-                    graphics.DrawString(((i - xCenter) * (maxX - minX) / width + minX).ToString("0.0"),
-                        font, Brushes.Black, i - 10, yCenter + 5);
                 }
 
-                // Поділки по Y
                 for (int j = 0; j <= height; j += 50)
                 {
                     graphics.DrawLine(axisPen, xCenter - 3, j, xCenter + 3, j);
-                    graphics.DrawString(((height - j - yCenter) * (maxY - minY) / height).ToString("0.0"),
-                        font, Brushes.Black, xCenter + 5, j - 7);
                 }
             }
         }
